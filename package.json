@@ -1,0 +1,29 @@
+{
+  "name": "@nexus/backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "dotenv -e .env -- tsx --watch src/main.ts",
+    "build": "dotenv -e .env -- tsx tsc -p tsconfig.json",
+    "test": "dotenv -e .env -- vitest run",
+    "test:watch": "dotenv -e .env -- vitest"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.0",
+    "@hono/swagger-ui": "^0.6.1",
+    "@supabase/supabase-js": "^2.104.1",
+    "exceljs": "^4.4.0",
+    "hono": "^4.12.15",
+    "zod": "^4.3.6",
+    "zod-openapi": "^5.4.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "dotenv-cli": "^11.0.0",
+    "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "uuid": "^9.0.1"
+  }
+}
