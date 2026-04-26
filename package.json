@@ -7,7 +7,9 @@
     "dev": "dotenv -e .env -- tsx --watch src/main.ts",
     "build": "dotenv -e .env -- tsx tsc -p tsconfig.json",
     "test": "dotenv -e .env -- vitest run",
-    "test:watch": "dotenv -e .env -- vitest"
+    "test:watch": "dotenv -e .env -- vitest",
+    "db:start": "supabase start",
+    "db:push": "supabase db push"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.0",
@@ -21,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "dotenv-cli": "^11.0.0",
+    "supabase": "^2.95.3",
     "vitest": "^4.1.5"
   },
   "overrides": {

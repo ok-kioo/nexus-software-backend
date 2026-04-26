@@ -27,7 +27,7 @@ BEGIN
       'authenticated',
       'authenticated',
       v_email,
-      crypt(v_password, gen_salt('bf')),
+      extensions.crypt(v_password, extensions.gen_salt('bf')),
       now(), now(), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
       jsonb_build_object('name', 'Admin Dev'),
@@ -38,7 +38,7 @@ BEGIN
       id, user_id, identity_data, provider, provider_id,
       last_sign_in_at, created_at, updated_at
     ) VALUES (
-      gen_random_uuid(),
+      extensions.gen_random_uuid(),
       v_user_id,
       jsonb_build_object('sub', v_user_id::text, 'email', v_email),
       'email',
