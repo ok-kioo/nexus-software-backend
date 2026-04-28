@@ -77,7 +77,11 @@ export async function parseWorkbook(buffer: Buffer): Promise<ParseResult> {
 
   const wb = new ExcelJS.Workbook();
   try {
-    await wb.xlsx.load(buffer);
+    const ab = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    ) as ArrayBuffer;
+    await wb.xlsx.load(ab);
   } catch (e) {
     throw new ParseError(`Não foi possível ler o arquivo: ${(e as Error).message}`);
   }
