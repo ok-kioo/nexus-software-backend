@@ -51,6 +51,28 @@ export const norm = (v: unknown) =>
     ? null
     : String(v).trim();
 
+export const text = (v: unknown): string | null => {
+  if (v === null || v === undefined) return null;
+
+  const value = String(v)
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return String(value).trim() || null;
+};
+
+export const lookupNorm = (v: unknown): string | null => {
+  const value = text(v);
+
+  if (!value) return null;
+
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
 export const numOrNull = (v: unknown) => {
   const n = Number(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : null;

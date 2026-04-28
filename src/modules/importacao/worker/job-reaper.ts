@@ -19,6 +19,15 @@ export async function startJobReaper(): Promise<void> {
       console.log(`[job-reaper] reaped ${stale.length} stale import job(s)`);
     }
   } catch (e) {
-    console.warn("[job-reaper] failed to scan stale jobs", e);
+    const msg = (e as Error).message ?? "";
+    // Silencia erro 42501 (permission denied): comum em DB local sem service_role
+    // configurada corretamente. Logado em modo discreto para não poluir o boot.
+    if (msg.includes("permission denied")) {
+      console.warn(
+        "[job-reaper] sem permissão para varrer jobs antigos — verifique SUPABASE_SERVICE_ROLE_KEY",
+      );
+    } else {
+      console.warn("[job-reaper] failed to scan stale jobs", msg);
+    }
   }
 }

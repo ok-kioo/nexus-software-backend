@@ -161,6 +161,16 @@ const TABLE_BY_ENTITY: Record<ImportEntityKey, string> = {
   matriculas: "matriculas", frequencia: "frequencia", notas: "notas",
 };
 
+const CONFLICT_BY_ENTITY: Record<ImportEntityKey, string> = {
+  unidades: "nome_unidade",
+  cursos: "nome_curso",
+  turmas: "nome_turma,unidade_id,curso_id",
+  alunos: "documento",
+  matriculas: "numero_matricula",
+  frequencia: "matricula_id,data",
+  notas: "matricula_id",
+};
+
 const NEED_BY_ENTITY: Record<ImportEntityKey, (keyof Lookups)[]> = {
   unidades: [],
   cursos: [],
@@ -172,62 +182,127 @@ const NEED_BY_ENTITY: Record<ImportEntityKey, (keyof Lookups)[]> = {
 };
 
 /**
- * Persiste cada entidade em ordem referencial (sequencial entre entidades).
- * Dentro de cada entidade, faz inserts em paralelo limitados por semáforo.
+ * Insere um lote tolerando duplicados:
+ *  1. Tenta upsert com ignoreDuplicates: registros existentes ficam no banco
+ *     intactos, novos entram. Postgres conta apenas as linhas efetivamente
+ *     inseridas em `count: exact`.
+ *  2. Se o lote inteiro falhar por algum erro (FK quebrada, valor inválido,
+ *     etc.), divide em duas metades e tenta novamente. Linhas únicas viram
+ *     erros pontuais ao invés de derrubar o lote inteiro.
+ */
+async function resilientUpsert(
+  admin: Admin,
+  table: string,
+  conflictTarget: string,
+  rows: Row[],
+  errors: string[],
+  baseLineNo = 2,
+): Promise<{ inserted: number; skipped: number }> {
+  if (rows.length === 0) return { inserted: 0, skipped: 0 };
+  const { error, count } = await admin
+    .from(table)
+    .upsert(rows as never[], {
+      onConflict: conflictTarget,
+      ignoreDuplicates: true,
+      count: "exact",
+    });
+  if (!error) {
+    const inserted = count ?? 0;
+    return { inserted, skipped: rows.length - inserted };
+  }
+  // Lote falhou. Se for 1 linha, registra erro real.
+  if (rows.length === 1) {
+    errors.push(`Linha ${baseLineNo}: ${error.message}`);
+    return { inserted: 0, skipped: 1 };
+  }
+  // Divide e tenta recursivamente.
+  const mid = Math.floor(rows.length / 2);
+  const left = await resilientUpsert(admin, table, conflictTarget, rows.slice(0, mid), errors, baseLineNo);
+  const right = await resilientUpsert(admin, table, conflictTarget, rows.slice(mid), errors, baseLineNo + mid);
+  return {
+    inserted: left.inserted + right.inserted,
+    skipped: left.skipped + right.skipped,
+  };
+}
+
+/**
+ * Persiste cada entidade em ordem referencial.
+ * - Aplica filtro `selectedEntities` se fornecido.
+ * - Usa upsert tolerante a duplicados; UM registro problemático nunca derruba o lote inteiro.
  */
 export async function persistWorkbook(
   entities: ValidatedEntity[],
   opts: {
     onProgress?: (done: number, total: number, entityName: string) => void;
     isCancelled?: () => Promise<boolean>;
+    mode?: "single" | "batched";
+    selectedEntities?: ImportEntityKey[];
   } = {},
 ): Promise<EntitySummary[]> {
   const admin = createAdminClient();
   const summaries: EntitySummary[] = [];
-  const byEntity = new Map(entities.map((e) => [e.entity, e]));
+  const filter = opts.selectedEntities && opts.selectedEntities.length > 0
+    ? new Set(opts.selectedEntities)
+    : null;
+  const filtered = filter ? entities.filter((e) => filter.has(e.entity)) : entities;
+  const byEntity = new Map(filtered.map((e) => [e.entity, e]));
 
-  // Total global de chunks para barra de progresso
+  const abort = new AbortController();
+  const checkCancel = async () => {
+    if (await opts.isCancelled?.()) {
+      abort.abort();
+      throw new Error("Importação cancelada");
+    }
+  };
+
+  const effectiveChunkSize = opts.mode === "single" ? Number.MAX_SAFE_INTEGER : CHUNK_SIZE;
   const totalChunks =
-    entities.reduce((a, e) => a + Math.ceil(e.rows.length / CHUNK_SIZE), 0) || 1;
+    filtered.reduce((a, e) => a + Math.max(1, Math.ceil(e.rows.length / effectiveChunkSize)), 0) || 1;
   let chunksDone = 0;
 
   for (const ent of COMMIT_ORDER) {
     const item = byEntity.get(ent);
     if (!item || item.rows.length === 0) continue;
 
-    if (await opts.isCancelled?.()) throw new Error("Importação cancelada");
+    await checkCancel();
 
-    // Atualiza lookups APÓS as entidades dependentes terem sido inseridas
     const need = NEED_BY_ENTITY[ent];
     const lk = need.length ? await buildLookups(admin, need) : {};
 
     const { payload, skipped, errors } = buildPayload(ent, item.rows, lk);
     let inserted = 0;
+    let totalSkipped = skipped;
 
     if (payload.length > 0) {
-      const chunks = chunk(payload, CHUNK_SIZE);
+      const chunks = chunk(payload, effectiveChunkSize);
+      let cursor = 2; // base line number tracker (linhas 1-based + header)
       await runWithConcurrency(
         chunks,
-        PARALLEL_INSERTS,
+        opts.mode === "single" ? 1 : PARALLEL_INSERTS,
         async (rows) => {
-          if (await opts.isCancelled?.()) throw new Error("Importação cancelada");
-          let resp;
-          if (ent === "notas") {
-            resp = await admin.from(TABLE_BY_ENTITY[ent])
-              .upsert(rows as never[], { onConflict: "matricula_id", count: "exact" });
-          } else {
-            resp = await admin.from(TABLE_BY_ENTITY[ent])
-              .insert(rows as never[], { count: "exact" });
-          }
-          if (resp.error) errors.push(resp.error.message);
-          else inserted += resp.count ?? rows.length;
+          if (abort.signal.aborted) return;
+          await checkCancel();
+          const startLine = cursor;
+          cursor += rows.length;
+          const result = await resilientUpsert(
+            admin,
+            TABLE_BY_ENTITY[ent],
+            CONFLICT_BY_ENTITY[ent],
+            rows,
+            errors,
+            startLine,
+          );
+          inserted += result.inserted;
+          totalSkipped += result.skipped;
           chunksDone++;
           opts.onProgress?.(chunksDone, totalChunks, ent);
         },
+        undefined,
+        abort.signal,
       );
     }
 
-    summaries.push({ entity: ent, inserted, skipped, errors });
+    summaries.push({ entity: ent, inserted, skipped: totalSkipped, errors });
   }
 
   return summaries;

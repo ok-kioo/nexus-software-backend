@@ -8,6 +8,7 @@ export async function runWithConcurrency<T, R>(
   limit: number,
   worker: (item: T, index: number) => Promise<R>,
   onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   if (items.length === 0) return results;
@@ -17,6 +18,7 @@ export async function runWithConcurrency<T, R>(
 
   const runners = Array.from({ length: concurrency }, async () => {
     while (true) {
+      if (signal?.aborted) return;
       const i = cursor++;
       if (i >= items.length) return;
       results[i] = await worker(items[i], i);
