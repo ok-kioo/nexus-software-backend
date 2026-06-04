@@ -445,6 +445,24 @@ export function importacaoController(): Hono {
     return c.json(result);
   });
 
+  // ───── Job ativo (não-terminal) mais recente do usuário ──────────
+  // IMPORTANTE: precisa vir ANTES de "/jobs/:id" senão "active" cai no handler de :id
+  // e parseUuidParam("active") retorna 400.
+  router.get("/jobs/active", async (c) => {
+    const { user } = getAuth(c);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("import_jobs")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("status", ["queued", "parsing", "validating", "persisting"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new HTTPException(500, { message: error.message });
+    return c.json({ job: data ?? null });
+  });
+
   router.get("/jobs/:id", async (c) => {
     const { user } = getAuth(c);
     const id = parseUuidParam(c, "id");
@@ -482,21 +500,9 @@ export function importacaoController(): Hono {
     return c.json({ initialImportRequired: Boolean(data) });
   });
 
-  // ───── Job ativo (não-terminal) mais recente do usuário ──────────
-  router.get("/jobs/active", async (c) => {
-    const { user } = getAuth(c);
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("import_jobs")
-      .select("*")
-      .eq("user_id", user.id)
-      .in("status", ["queued", "parsing", "validating", "persisting"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw new HTTPException(500, { message: error.message });
-    return c.json({ job: data ?? null });
-  });
+  // (handler de /jobs/active está registrado mais acima, antes de /jobs/:id)
+
+
 
   // ───── SSE: stream de eventos para um job (substitui polling) ────
   router.get("/jobs/:id/events", async (c) => {

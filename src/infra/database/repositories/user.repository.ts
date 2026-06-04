@@ -106,6 +106,25 @@ export class SupabaseUserRepository implements UserRepository {
     const { error: insertErr } = await admin.from("user_roles").insert({ user_id: userId, role });
     if (insertErr) throw dbError(insertErr);
   }
+
+  async getOnboarding(userId: string): Promise<unknown> {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("profiles")
+      .select("onboarding")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) throw dbError(error);
+    return data?.onboarding ?? null;
+  }
+  async updateOnboarding(userId: string, state: unknown): Promise<void> {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("profiles")
+      .update({ onboarding: state as never })
+      .eq("id", userId);
+    if (error) throw dbError(error);
+  }
 }
 
 export const userRepository: UserRepository = new SupabaseUserRepository();

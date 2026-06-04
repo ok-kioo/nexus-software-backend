@@ -16,6 +16,8 @@ export interface UserRepository {
   updateProfile(userId: string, patch: { name?: string; email?: string }): Promise<void>;
   updateAuthEmail(userId: string, email: string): Promise<void>;
   replaceTurmas(userId: string, turmaIds: string[]): Promise<void>;
+  getOnboarding(userId: string): Promise<unknown>;
+  updateOnboarding(userId: string, state: unknown): Promise<void>;
 }
 
 export { userRepository } from "../../../infra/database/repositories/user.repository";

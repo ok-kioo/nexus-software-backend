@@ -10,12 +10,51 @@ import { z, type ZodTypeAny } from "zod";
  * mensagens de erro consistentes e previsíveis no front.
  */
 
+const FIELD_LABELS: Record<string, string> = {
+  titulo: "Título",
+  descricao: "Descrição",
+  nome: "Nome",
+  nome_aluno: "Nome do aluno",
+  nome_turma: "Nome da turma",
+  nome_curso: "Nome do curso",
+  nome_unidade: "Nome da unidade",
+  email: "E-mail",
+  telefone: "Telefone",
+  documento: "Documento",
+  data_nascimento: "Data de nascimento",
+  data_inicio: "Data de início",
+  data_fim: "Data final",
+  prazo: "Prazo",
+  prioridade: "Prioridade",
+  status: "Status",
+  aluno_id: "Aluno",
+  turma_id: "Turma",
+  curso_id: "Curso",
+  unidade_id: "Unidade",
+  responsavel_id: "Responsável",
+  numero_matricula: "Número da matrícula",
+  motivo: "Motivo",
+  corpo: "Corpo",
+  tipo: "Tipo",
+  cidade: "Cidade",
+  estado: "Estado",
+  categoria: "Categoria",
+  observacao: "Observação",
+  password: "Senha",
+  currentPassword: "Senha atual",
+  newPassword: "Nova senha",
+  role: "Papel",
+};
+
+function labelFor(path: (string | number)[]): string {
+  if (!path.length) return "Campo";
+  const key = String(path[path.length - 1]);
+  return FIELD_LABELS[key] ?? key;
+}
+
 function formatIssues(error: z.ZodError): string {
   return error.issues
-    .map((i) => {
-      const path = i.path.length ? i.path.join(".") : "(root)";
-      return `${path}: ${i.message}`;
-    })
+    .map((i) => `${labelFor(i.path as (string | number)[])}: ${i.message}`)
     .join("; ");
 }
 

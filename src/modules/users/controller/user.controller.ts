@@ -8,11 +8,14 @@ import {
   UpdateMeSchema,
   ChangePasswordSchema,
 } from "../dto/user.dto";
+import { UpdateOnboardingSchema } from "../dto/onboarding.dto";
 import { userRepository } from "../domain/user.repository";
 import { listUsersWithRolesCase } from "../cases/list-users-with-roles.case";
 import { updateUserRoleCase } from "../cases/update-user-role.case";
 import { updateUserCase } from "../cases/update-user.case";
 import { changeOwnPasswordCase } from "../cases/change-password.case";
+import { getOnboardingCase } from "../cases/get-onboarding.case";
+import { updateOnboardingCase } from "../cases/update-onboarding.case";
 
 export function userController(): Hono {
   const router = new Hono();
@@ -55,6 +58,23 @@ export function userController(): Hono {
     );
     return c.json(result);
   });
+
+    // ── Onboarding (self) ──────────────────────────────────────
+  router.get("/me/onboarding", async (c) => {
+    const { user } = getAuth(c);
+    const state = await getOnboardingCase(userRepository, user.id);
+    return c.json(state);
+  });
+  router.patch("/me/onboarding", async (c) => {
+    const { user } = getAuth(c);
+    const parsed = UpdateOnboardingSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? "Payload inválido" });
+    }
+    const state = await updateOnboardingCase(userRepository, user.id, parsed.data);
+    return c.json(state);
+  });
+
 
   // ── Detail / edit ──────────────────────────────────────────
   router.get("/:id", async (c) => {
