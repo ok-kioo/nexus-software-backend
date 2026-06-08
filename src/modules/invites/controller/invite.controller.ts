@@ -5,7 +5,7 @@ import { getAuth, requireRole } from "../../../infra/http/auth-middleware";
 import { ADMIN_GESTOR_ROLES, ADMIN_ONLY, canAssignRole } from "../../../infra/shared/roles";
 import type { UserRole } from "../../../infra/shared/roles";
 import { createAdminClient, createUserClient } from "../../../infra/database/supabase-client";
-import { cleanOrigin } from "../../../infra/shared/utils";
+import { safeOrigin } from "../../../infra/config/env";
 import { dbError } from "../../../infra/shared/db-errors";
 import {
   AcceptInviteSchema,
@@ -14,8 +14,10 @@ import {
   TestInviteSchema,
 } from "../dto/invite.dto";
 
-function inviteAcceptUrl(origin: string, token: string) {
-  return `${cleanOrigin(origin)}/aceitar-convite?token=${token}`;
+function inviteAcceptUrl(origin: string | undefined | null, token: string) {
+  // Validate the request Origin against the configured allowlist before
+  // embedding it in an email to prevent phishing via Origin header injection.
+  return `${safeOrigin(origin)}/aceitar-convite?token=${token}`;
 }
 
 export function inviteController(): Hono {

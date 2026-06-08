@@ -411,7 +411,11 @@ export function importacaoController(): Hono {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         upsert: false,
       });
-    if (upErr) throw new HTTPException(500, { message: `Falha ao salvar arquivo: ${upErr.message}` });
+    if (upErr) {
+      // eslint-disable-next-line no-console
+      console.error("[importacao] storage upload failed", upErr);
+      throw new HTTPException(500, { message: "Falha ao salvar arquivo. Tente novamente." });
+    }
 
     const repo = new ImportJobRepository(admin);
     const job = await repo.create({
