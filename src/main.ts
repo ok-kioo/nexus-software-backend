@@ -1,5 +1,6 @@
 import { z, locales } from "zod";
 z.config(locales.pt());
+
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -7,6 +8,7 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { config } from "./infra/config/env";
 import { errorHandler } from "./infra/http/error-handler";
 import { requestLogger } from "./infra/http/request-logger";
+import { rateLimit } from "./infra/http/rate-limit";
 import { registerRoutes } from "./routes";
 import { openapiDocument } from "./infra/http/openapi";
 import { startJobReaper } from "./modules/importacao/worker/job-reaper";
@@ -22,6 +24,26 @@ app.use(
   }),
 );
 app.use("*", requestLogger);
+
+// Rate limit global (in-memory, single-instance). Health/docs são excluídos.
+app.use(
+  "*",
+  rateLimit({
+    windowMs: config.rateLimitWindowMs,
+    max: config.rateLimitMax,
+    scope: "global",
+  }),
+);
+
+// Rate limit específico do Capelo (chamada IA = caro). Aplicado antes do auth.
+app.use(
+  "/v1/capelo/*",
+  rateLimit({
+    windowMs: config.rateLimitWindowMs,
+    max: config.rateLimitCapeloMax,
+    scope: "capelo",
+  }),
+);
 
 // OpenAPI / Swagger UI — públicos
 app.get("/docs/openapi.json", (c) => c.json(openapiDocument));

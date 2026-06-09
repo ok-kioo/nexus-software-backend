@@ -19,6 +19,14 @@ export const config = {
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "",
+  // Capelo / n8n
+  n8nCapeloUrl:
+    process.env.N8N_CAPELO_URL ??
+    "http://localhost:5678/webhook/647a7bde-b944-4d1d-bd2a-ae04e7ee4d2a/chat",
+  // Rate limiting (in-memory, single-instance)
+  rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
+  rateLimitMax: Number(process.env.RATE_LIMIT_MAX ?? 120),
+  rateLimitCapeloMax: Number(process.env.RATE_LIMIT_CAPELO_MAX ?? 20),
 };
 
 export function requireEnv(name: keyof typeof config) {

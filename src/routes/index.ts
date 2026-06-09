@@ -19,6 +19,7 @@ import { analyticsRoutes } from "./analytics.routes";
 import { importacaoRoutes } from "./importacao.routes";
 import { exportacaoRoutes } from "./exportacao.routes";
 import { alertasRoutes } from "./alertas.routes";
+import { capeloRoutes } from "./capelo.routes";
 
 /**
  * Lista canônica de rotas autenticadas. Cada item será montado em /v1/<prefix>
@@ -43,6 +44,7 @@ const AUTH_ROUTES: Array<{ prefix: string; router: Hono }> = [
   { prefix: "/v1/importacao", router: importacaoRoutes },
   { prefix: "/v1/exportacao", router: exportacaoRoutes },
   { prefix: "/v1/alertas", router: alertasRoutes },
+  { prefix: "/v1/capelo", router: capeloRoutes },
 ];
 
 export function registerRoutes(app: Hono) {
